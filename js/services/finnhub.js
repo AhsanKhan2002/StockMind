@@ -3,7 +3,7 @@
 
 const Finnhub = (() => {
   const BASE = 'https://api.twelvedata.com';
-  const KEY  = 'YOUR_TWELVE_DATA_API_KEY_HERE'; // ← paste your key here
+  const KEY  = '6c698bee81bb410c86ce080d7247668b'; // ← paste your key here
 
   async function get(path, params = {}) {
     const url = new URL(`${BASE}${path}`);
