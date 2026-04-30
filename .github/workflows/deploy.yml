@@ -1,0 +1,22 @@
+name: Deploy StockMind
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject API keys
+        run: |
+          sed -i "s|d7pbbv9r01qlb0a9dr4gd7pbbv9r01qlb0a9dr50|${{ secrets.FINNHUB_API_KEY }}|g" js/services/finnhub.js
+          sed -i "s|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|${{ secrets.GROQ_API_KEY }}|g" js/services/gemini.js
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
