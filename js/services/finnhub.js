@@ -1,151 +1,88 @@
-// ── services/twelvedata.js ────────────────────────────────────
-// Twelve Data API — free tier compatible (800 req/day, 8/min)
+// ── services/finnhub.js ──────────────────────────────────────
+// Finnhub API — free tier (60 req/min)
 
 const Finnhub = (() => {
-  const BASE = 'https://api.twelvedata.com';
-  const KEY  = '6c698bee81bb410c86ce080d7247668b'; // ← paste your key here
+  const BASE = 'https://finnhub.io/api/v1';
+  const KEY  = 'd7pbbv9r01qlb0a9dr4gd7pbbv9r01qlb0a9dr50';
 
   async function get(path, params = {}) {
     const url = new URL(`${BASE}${path}`);
-    url.searchParams.set('apikey', KEY);
+    url.searchParams.set('token', KEY);
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     const res = await fetch(url.toString());
-    if (!res.ok) throw new Error(`TwelveData ${path} → ${res.status}`);
-    const data = await res.json();
-    if (data.status === 'error') throw new Error(`TwelveData: ${data.message}`);
-    return data;
+    if (!res.ok) throw new Error(`Finnhub ${path} → ${res.status}`);
+    return res.json();
   }
 
-  // Single quote
   async function quote(symbol) {
     const q = await get('/quote', { symbol });
     return {
-      c:  parseFloat(q.close)          || 0,
-      o:  parseFloat(q.open)           || 0,
-      h:  parseFloat(q.high)           || 0,
-      l:  parseFloat(q.low)            || 0,
-      d:  parseFloat(q.change)         || 0,
-      dp: parseFloat(q.percent_change) || 0,
-      v:  parseFloat(q.volume)         || 0,
+      c:  q.c  || 0,
+      o:  q.o  || 0,
+      h:  q.h  || 0,
+      l:  q.l  || 0,
+      d:  q.d  || 0,
+      dp: q.dp || 0,
+      v:  q.v  || 0,
       symbol,
     };
   }
 
-  // Watchlist for gainers/losers calculation
-  // Exactly 8 symbols — matches Twelve Data free tier (8 credits/min)
-  const WATCHLIST = ['AAPL','MSFT','NVDA','TSLA','AMZN','META','GOOGL','AMD'];
+  const WATCHLIST = [
+    'AAPL','MSFT','NVDA','AMZN','GOOGL','META','TSLA','JPM','V','UNH',
+    'XOM','LLY','JNJ','PG','MA','HD','CVX','MRK','ABBV','AVGO',
+    'COST','PEP','KO','AMD','NFLX','ORCL','CRM','BAC','WMT','DIS',
+    'INTC','QCOM','GS','PYPL','SHOP','PLTR','SOFI','HOOD','RIVN','F',
+    'GM','BA','GE','NIO','LCID','SQ','ACN','MS','TMO','BRK.B'
+  ];
 
   async function topMovers() {
-    // Fetch all quotes in one call using comma-separated symbols
-    const data = await get('/quote', { symbol: WATCHLIST.join(',') });
-
-    // Twelve Data returns an object keyed by symbol when multiple requested
-    const results = Object.entries(data).map(([symbol, q]) => ({
-      symbol,
-      c:  parseFloat(q.close)          || 0,
-      o:  parseFloat(q.open)           || 0,
-      h:  parseFloat(q.high)           || 0,
-      l:  parseFloat(q.low)            || 0,
-      d:  parseFloat(q.change)         || 0,
-      dp: parseFloat(q.percent_change) || 0,
-      v:  parseFloat(q.volume)         || 0,
-    })).filter(q => q.c > 0);
-
-    const sorted = [...results].sort((a, b) => b.dp - a.dp);
+    const data = await Promise.all(WATCHLIST.map(s =>
+      get('/quote', { symbol: s }).then(q => ({ symbol: s, ...q })).catch(() => null)
+    ));
+    const valid  = data.filter(q => q && q.dp !== null && q.c > 0);
+    const sorted = [...valid].sort((a, b) => b.dp - a.dp);
     return {
       gainers: sorted.slice(0, 5),
       losers:  sorted.slice(-5).reverse(),
     };
   }
 
-  // Weekly candles
   async function weeklyCandles(symbol) {
-    const data = await get('/time_series', {
-      symbol,
-      interval:    '1day',
-      outputsize:  10,
-      order:       'ASC',
-    });
-
-    const values = data.values || [];
-    if (!values.length) return { s: 'no_data' };
-
-    return {
-      s: 'ok',
-      t: values.map(d => Math.floor(new Date(d.datetime).getTime() / 1000)),
-      c: values.map(d => parseFloat(d.close)),
-      o: values.map(d => parseFloat(d.open)),
-      h: values.map(d => parseFloat(d.high)),
-      l: values.map(d => parseFloat(d.low)),
-      v: values.map(d => parseFloat(d.volume)),
-    };
+    const now  = Math.floor(Date.now() / 1000);
+    const from = now - 60 * 60 * 24 * 10;
+    return get('/stock/candle', { symbol, resolution: 'D', from, to: now });
   }
 
-  // Company profile — Twelve Data has a profile endpoint
   async function profile(symbol) {
-    try {
-      const data = await get('/profile', { symbol });
-      return {
-        name:                 data.name            || symbol,
-        finnhubIndustry:      data.sector          || '',
-        exchange:             data.exchange         || '',
-        marketCapitalization: data.market_cap ? parseFloat(data.market_cap) / 1e6 : null,
-        weburl:               data.website          || '',
-        logo:                 data.logo             || '',
-        description:          data.description      || '',
-      };
-    } catch {
-      return { name: symbol };
-    }
+    return get('/stock/profile2', { symbol });
   }
 
-  // News — Twelve Data has a news endpoint
   async function news(symbol) {
-    try {
-      const data = await get('/news', { symbol, outputsize: 10 });
-      return (data.data || []).map(n => ({
-        headline: n.title       || '',
-        summary:  n.description || '',
-        url:      n.url         || '',
-        source:   n.source      || '',
-        datetime: n.datetime ? new Date(n.datetime).getTime() / 1000 : 0,
-      }));
-    } catch {
-      return [];
-    }
+    const to   = new Date().toISOString().split('T')[0];
+    const from = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    return get('/company-news', { symbol, from, to });
   }
 
-  // Financials — Twelve Data has statistics endpoint
   async function financials(symbol) {
-    try {
-      const data = await get('/statistics', { symbol });
-      const v = data.statistics?.valuations_metrics || {};
-      const s = data.statistics?.stock_price_summary || {};
-      return {
-        metric: {
-          peBasicExclExtraTTM: parseFloat(v.trailing_pe)    || null,
-          '52WeekHigh':        parseFloat(s['52_week_high']) || null,
-          '52WeekLow':         parseFloat(s['52_week_low'])  || null,
-          revenueGrowthTTMYoy: null,
-          netProfitMarginTTM:  null,
-        },
-      };
-    } catch {
-      return { metric: {} };
-    }
+    return get('/stock/metric', { symbol, metric: 'all' });
   }
 
-  // Analyst recommendations — not on Twelve Data free tier, Gemini handles
-  async function recommendations() { return []; }
+  async function recommendations(symbol) {
+    return get('/stock/recommendation', { symbol });
+  }
 
-  // Insider transactions — not on Twelve Data free tier
-  async function insiders() { return { data: [] }; }
+  async function insiders(symbol) {
+    return get('/stock/insider-transactions', { symbol });
+  }
 
-  // Earnings — not on Twelve Data free tier
-  async function earnings() { return []; }
+  async function earnings(symbol) {
+    return get('/stock/earnings', { symbol });
+  }
 
-  // Sentiment — Gemini handles this
-  async function sentiment() { return { data: [] }; }
+  async function sentiment(symbol) {
+    return get('/stock/social-sentiment', { symbol });
+  }
 
   return {
     quote,
