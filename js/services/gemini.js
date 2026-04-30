@@ -1,33 +1,37 @@
-// ── services/gemini.js ───────────────────────────────────────
-// Gemini Flash API calls. Key is read from config.js.
+// ── services/groq.js ─────────────────────────────────────────
+// Groq API — free tier (30 req/min, 6000 req/day)
+// Using Llama 3.3 70B model
 
 const Gemini = (() => {
-  const MODEL = 'gemini-2.0-flash';
-  const BASE  = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
-
-  function key() {
-    return 'AIzaSyAlSCLtQBbYGBMZKQQI1I7HMShEPqgMGWs';
-  }
+  const BASE  = 'https://api.groq.com/openai/v1/chat/completions';
+  const KEY   = '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';
+  const MODEL = 'llama-3.3-70b-versatile';
 
   async function generate(prompt) {
-    const url = `${BASE}?key=${key()}`;
-    const res = await fetch(url, {
+    const res = await fetch(BASE, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${KEY}`,
+      },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
+        model:       MODEL,
+        temperature: 0.4,
+        max_tokens:  2048,
+        messages: [{ role: 'user', content: prompt }],
       }),
     });
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(`Gemini error ${res.status}: ${err?.error?.message || 'Unknown'}`);
+      throw new Error(`Groq error ${res.status}: ${err?.error?.message || 'Unknown'}`);
     }
+
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    return data.choices?.[0]?.message?.content || '';
   }
 
-  // Generate the full investment analysis for a stock
+  // Generate full investment analysis
   async function investmentAnalysis({ symbol, profile, financials, recommendations, insiders, earnings, sentiment, news }) {
     const recSummary = recommendations?.[0]
       ? `Buy: ${recommendations[0].buy}, Hold: ${recommendations[0].hold}, Sell: ${recommendations[0].sell}, Strong Buy: ${recommendations[0].strongBuy}, Strong Sell: ${recommendations[0].strongSell}`
@@ -36,15 +40,14 @@ const Gemini = (() => {
     const newsSummary = (news || []).slice(0, 5).map(n => `- ${n.headline}`).join('\n') || 'No recent news';
 
     const sentimentSummary = sentiment?.data?.length
-      ? `Reddit mentions: ${sentiment.data.slice(-1)[0]?.mention || 0}, Twitter mentions: ${sentiment.data.slice(-1)[0]?.mention || 0}`
+      ? `Mentions available: ${sentiment.data.length} data points`
       : 'Sentiment data not available';
 
     const insiderSummary = insiders?.data?.slice(0, 3).map(i =>
       `${i.name} (${i.transactionCode}): ${i.share} shares at $${i.transactionPrice}`
     ).join('\n') || 'No recent insider activity';
 
-    const prompt = `
-You are StockMind AI, a professional financial analyst assistant. Analyze ${symbol} (${profile?.name || symbol}) for a retail investor considering whether to invest.
+    const prompt = `You are StockMind AI, a professional financial analyst. Analyze ${symbol} (${profile?.name || symbol}) for a retail investor.
 
 Company: ${profile?.name || symbol}
 Industry: ${profile?.finnhubIndustry || 'N/A'}
@@ -52,10 +55,9 @@ Market Cap: ${profile?.marketCapitalization ? '$' + (profile.marketCapitalizatio
 P/E Ratio: ${financials?.metric?.peBasicExclExtraTTM?.toFixed(2) || 'N/A'}
 52W High: ${financials?.metric?.['52WeekHigh'] || 'N/A'}
 52W Low: ${financials?.metric?.['52WeekLow'] || 'N/A'}
-Revenue Growth (YoY): ${financials?.metric?.revenueGrowthTTMYoy?.toFixed(2) || 'N/A'}%
 Analyst Consensus: ${recSummary}
 
-Recent News Headlines:
+Recent News:
 ${newsSummary}
 
 Recent Insider Activity:
@@ -63,56 +65,63 @@ ${insiderSummary}
 
 Social Sentiment: ${sentimentSummary}
 
-Respond ONLY with a valid JSON object (no markdown, no backticks) with exactly this structure:
+Respond ONLY with a valid JSON object, no markdown, no backticks, no explanation. Use exactly this structure:
 {
   "companyContext": {
     "overview": "2-3 sentence description of what the company does and its market position",
-    "marketDemand": "Unbiased 2-3 sentence assessment of market demand for the company's products/services, including competitive landscape"
+    "marketDemand": "Unbiased 2-3 sentence assessment of market demand for the company products/services"
   },
   "reportsAndCatalysts": {
-    "earningsAndReports": "Any upcoming or recent earnings reports and their impact on the stock",
+    "earningsAndReports": "Any upcoming or recent earnings reports and their impact",
     "investmentsAndPartnerships": "Notable investments, partnerships, or strategic moves",
     "analystOutlook": "Summary of analyst sentiment and price target consensus"
   },
   "optionsAndDarkPool": {
-    "summary": "Brief analysis of what options activity and institutional/dark pool activity suggests about where smart money is positioned. Note if specific data is unavailable.",
-    "implication": "One sentence on what this means for the stock direction"
+    "summary": "Brief analysis of what options activity and institutional/dark pool activity suggests",
+    "implication": "One sentence on what this means for stock direction"
   },
   "socialSentiment": {
-    "analysis": "2-3 sentence analysis of retail investor and social media sentiment around this stock",
+    "analysis": "2-3 sentence analysis of retail investor and social media sentiment",
     "impact": "How this sentiment could influence near-term price action"
   },
   "verdict": {
-    "rating": "BUY | HOLD | RISKY BUY | AVOID",
+    "rating": "BUY or HOLD or RISKY BUY or AVOID",
     "summary": "2-3 sentence honest summary of whether this is a good time to invest and why",
     "keyRisk": "The single biggest risk to be aware of"
   }
 }`;
 
     const raw = await generate(prompt);
-    // Strip any accidental markdown fences
     const cleaned = raw.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleaned);
+    // Extract JSON if there's any surrounding text
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No valid JSON in response');
+    return JSON.parse(match[0]);
   }
 
-  // Summarize news articles and their impact on a stock
+  // Summarize news articles
   async function summarizeNews(symbol, articles) {
     if (!articles?.length) return [];
-    const headlines = articles.slice(0, 8).map((a, i) => `${i + 1}. ${a.headline} — ${a.summary || ''}`).join('\n');
-    const prompt = `
-You are a financial news analyst. For the stock ${symbol}, summarize each of the following news items in one sentence and briefly state how it likely affects the stock (positive/negative/neutral and why).
+
+    const headlines = articles.slice(0, 8).map((a, i) =>
+      `${i + 1}. ${a.headline} — ${a.summary || ''}`
+    ).join('\n');
+
+    const prompt = `You are a financial news analyst. For the stock ${symbol}, summarize each news item in one sentence and state how it affects the stock.
 
 Headlines:
 ${headlines}
 
-Respond ONLY with a valid JSON array (no markdown, no backticks) like:
+Respond ONLY with a valid JSON array, no markdown, no backticks:
 [
-  { "headline": "original headline", "summary": "one sentence summary", "impact": "positive/negative/neutral", "reason": "brief reason" }
+  { "headline": "original headline", "summary": "one sentence summary", "impact": "positive or negative or neutral", "reason": "brief reason" }
 ]`;
 
     const raw = await generate(prompt);
     const cleaned = raw.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleaned);
+    const match = cleaned.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error('No valid JSON array in response');
+    return JSON.parse(match[0]);
   }
 
   return { investmentAnalysis, summarizeNews };
