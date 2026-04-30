@@ -2,7 +2,7 @@
 // Gemini Flash API calls. Key is read from config.js.
 
 const Gemini = (() => {
-  const MODEL = 'gemini-1.5-flash';
+  const MODEL = 'gemini-2.0-flash';
   const BASE  = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
   function key() {
