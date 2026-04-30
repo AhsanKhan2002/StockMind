@@ -1,6 +1,6 @@
 ◈ StockMind
 AI-powered stock market intelligence dashboard — built with vanilla HTML, CSS, and JavaScript. No frameworks. Deployed on GitHub Pages.
-🌐 Live Site: ahsankhan2002.github.io/StockMind
+🌐 Live Site: [ahsankhan2002.github.io/StockMind](https://ahsankhan2002.github.io/StockMind/)
 
 What is StockMind?
 StockMind is a real-time stock market dashboard that combines live market data with AI-generated investment analysis. It was built as a portfolio project to demonstrate API integration, AI summarization, and component-based JavaScript architecture without relying on any frontend frameworks.
