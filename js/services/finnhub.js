@@ -1,6 +1,3 @@
-// ── services/fmp.js ──────────────────────────────────────────
-// Financial Modeling Prep (FMP) API — free tier compatible
-
 const Finnhub = (() => {
   const BASE = 'https://financialmodelingprep.com/api/v3';
   const KEY  = 'loo4ETbZdvygbJ0whsNqVZX1uRFcMg11';
@@ -14,7 +11,6 @@ const Finnhub = (() => {
     return res.json();
   }
 
-  // Single quote
   async function quote(symbol) {
     const data = await get(`/quote/${symbol}`);
     const q = Array.isArray(data) ? data[0] : data;
@@ -31,31 +27,29 @@ const Finnhub = (() => {
     };
   }
 
-  // Top gainers/losers using correct free tier endpoints
+  const WATCHLIST = [
+    'AAPL','MSFT','NVDA','AMZN','GOOGL',
+    'META','TSLA','JPM','V','AMD'
+  ];
+
   async function topMovers() {
-    const [gainersRaw, losersRaw] = await Promise.all([
-      get('/gainers'),
-      get('/losers'),
-    ]);
-
-    const mapStock = s => ({
-      symbol: s.ticker  || s.symbol,
-      c:  s.price       || 0,
-      o:  (s.price - (s.change || 0)) || 0,
-      h:  s.price       || 0,
-      l:  s.price       || 0,
-      d:  s.change      || 0,
-      dp: parseFloat(s.changesPercentage || s.changePercentage || 0),
-      v:  s.volume      || 0,
-    });
-
+    const results = [];
+    for (const symbol of WATCHLIST) {
+      try {
+        const q = await quote(symbol);
+        results.push(q);
+      } catch(e) {
+        console.warn(`Skipping ${symbol}:`, e.message);
+      }
+    }
+    const valid  = results.filter(q => q.c > 0);
+    const sorted = [...valid].sort((a, b) => b.dp - a.dp);
     return {
-      gainers: (Array.isArray(gainersRaw) ? gainersRaw : []).slice(0, 5).map(mapStock),
-      losers:  (Array.isArray(losersRaw)  ? losersRaw  : []).slice(0, 5).map(mapStock),
+      gainers: sorted.slice(0, 5),
+      losers:  sorted.slice(-5).reverse(),
     };
   }
 
-  // Weekly candles
   async function weeklyCandles(symbol) {
     const to   = new Date().toISOString().split('T')[0];
     const from = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -73,7 +67,6 @@ const Finnhub = (() => {
     };
   }
 
-  // Company profile
   async function profile(symbol) {
     const data = await get(`/profile/${symbol}`);
     const p = Array.isArray(data) ? data[0] : data;
@@ -89,7 +82,6 @@ const Finnhub = (() => {
     };
   }
 
-  // News
   async function news(symbol) {
     const data = await get(`/stock_news`, { tickers: symbol, limit: 10 });
     return (Array.isArray(data) ? data : []).map(n => ({
@@ -101,7 +93,6 @@ const Finnhub = (() => {
     }));
   }
 
-  // Financials
   async function financials(symbol) {
     const [ratios, metrics] = await Promise.allSettled([
       get(`/ratios-ttm/${symbol}`),
@@ -120,7 +111,6 @@ const Finnhub = (() => {
     };
   }
 
-  // Analyst recommendations
   async function recommendations(symbol) {
     const data = await get(`/analyst-stock-recommendations/${symbol}`);
     if (!Array.isArray(data) || !data.length) return [];
@@ -135,7 +125,6 @@ const Finnhub = (() => {
     return [counts];
   }
 
-  // Insider transactions
   async function insiders(symbol) {
     const data = await get(`/insider-trading`, { symbol, limit: 5 });
     return {
@@ -148,13 +137,11 @@ const Finnhub = (() => {
     };
   }
 
-  // Earnings
   async function earnings(symbol) {
     const data = await get(`/earnings-surprises/${symbol}`);
     return Array.isArray(data) ? data.slice(0, 4) : [];
   }
 
-  // Sentiment — not on FMP free tier, Gemini handles it
   async function sentiment() {
     return { data: [] };
   }
