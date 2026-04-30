@@ -6,7 +6,7 @@ const Gemini = (() => {
   const BASE  = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
   function key() {
-    return 'AIzaSyC0mPqb2Eq-TrOpu7xxx63kPgiN8w7uYpQ';
+    return 'AIzaSyDfoj-dKr1xMR-ATEHM2XFRNprJZaQ_MSI';
   }
 
   async function generate(prompt) {
