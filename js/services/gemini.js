@@ -4,7 +4,7 @@
 
 const Gemini = (() => {
   const BASE  = 'https://api.groq.com/openai/v1/chat/completions';
-  const KEY   = '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';
+  const KEY   = 'GROQ_KEY_PLACEHOLDER';
   const MODEL = 'llama-3.3-70b-versatile';
 
   async function generate(prompt) {
