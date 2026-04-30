@@ -1,5 +1,5 @@
 // ── services/finnhub.js ──────────────────────────────────────
-// Finnhub API — free tier (60 req/min)
+// Finnhub API — free tier (60 req/min) 
 
 const Finnhub = (() => {
   const BASE = 'https://finnhub.io/api/v1';
