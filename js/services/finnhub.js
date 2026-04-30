@@ -3,7 +3,7 @@
 
 const Finnhub = (() => {
   const BASE = 'https://finnhub.io/api/v1';
-  const KEY  = 'd7pbbv9r01qlb0a9dr4gd7pbbv9r01qlb0a9dr50';
+  const KEY  = 'FINNHUB_KEY_PLACEHOLDER';
 
   async function get(path, params = {}) {
     const url = new URL(`${BASE}${path}`);
