@@ -14,7 +14,8 @@ jobs:
         env:
           FINNHUB_KEY: ${{ secrets.FINNHUB_API_KEY }}
           GROQ_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: python3 inject_keys.py
+        run: python3 ${{ github.workspace }}/inject_keys.py
+        working-directory: ${{ github.workspace }}
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
