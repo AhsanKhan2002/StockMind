@@ -3,7 +3,7 @@
 
 const Finnhub = (() => {
   const BASE = 'https://api.twelvedata.com';
-  const KEY  = '6c698bee81bb410c86ce080d7247668b'; // ← paste your key here
+  const KEY  = 'YOUR_TWELVE_DATA_API_KEY_HERE'; // ← paste your key here
 
   async function get(path, params = {}) {
     const url = new URL(`${BASE}${path}`);
@@ -32,12 +32,8 @@ const Finnhub = (() => {
   }
 
   // Watchlist for gainers/losers calculation
-  const WATCHLIST = [
-    'AAPL','MSFT','NVDA','AMZN','GOOGL',
-    'META','TSLA','JPM','V','AMD',
-    'NFLX','ORCL','PLTR','SOFI','HOOD',
-    'BA','GE','F','DIS','PYPL'
-  ];
+  // Exactly 8 symbols — matches Twelve Data free tier (8 credits/min)
+  const WATCHLIST = ['AAPL','MSFT','NVDA','TSLA','AMZN','META','GOOGL','AMD'];
 
   async function topMovers() {
     // Fetch all quotes in one call using comma-separated symbols
