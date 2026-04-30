@@ -14,29 +14,7 @@ jobs:
         env:
           FINNHUB_KEY: ${{ secrets.FINNHUB_API_KEY }}
           GROQ_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: |
-          python3 -c "
-import os
-f = open('js/services/finnhub.js', 'r')
-content = f.read()
-f.close()
-content = content.replace('FINNHUB_KEY_PLACEHOLDER', os.environ['FINNHUB_KEY'])
-f = open('js/services/finnhub.js', 'w')
-f.write(content)
-f.close()
-print('Finnhub key injected')
-"
-          python3 -c "
-import os
-f = open('js/services/gemini.js', 'r')
-content = f.read()
-f.close()
-content = content.replace('GROQ_KEY_PLACEHOLDER', os.environ['GROQ_KEY'])
-f = open('js/services/gemini.js', 'w')
-f.write(content)
-f.close()
-print('Groq key injected')
-"
+        run: python3 inject_keys.py
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
