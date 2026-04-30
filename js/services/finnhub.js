@@ -14,29 +14,12 @@ const Finnhub = (() => {
     return res.json();
   }
 
-  // Quote for a single symbol — uses /quote/:symbol
+  // Single quote
   async function quote(symbol) {
     const data = await get(`/quote/${symbol}`);
     const q = Array.isArray(data) ? data[0] : data;
     if (!q) throw new Error(`No quote data for ${symbol}`);
     return {
-      c:  q.price              || 0,
-      o:  q.open               || 0,
-      h:  q.dayHigh            || 0,
-      l:  q.dayLow             || 0,
-      d:  q.change             || 0,
-      dp: q.changesPercentage  || 0,
-      v:  q.volume             || 0,
-      symbol,
-    };
-  }
-
-  // Batch quotes — FMP supports comma-separated symbols in one call
-  async function batchQuotes(symbols) {
-    const joined = symbols.join(',');
-    const data = await get(`/quote/${joined}`);
-    return (Array.isArray(data) ? data : []).map(q => ({
-      symbol: q.symbol,
       c:  q.price             || 0,
       o:  q.open              || 0,
       h:  q.dayHigh           || 0,
@@ -44,26 +27,31 @@ const Finnhub = (() => {
       d:  q.change            || 0,
       dp: q.changesPercentage || 0,
       v:  q.volume            || 0,
-    }));
+      symbol,
+    };
   }
 
-  // Top gainers/losers — batch fetch a watchlist, rank ourselves
-  // Uses only 1 API call instead of 50
-  const WATCHLIST = [
-    'AAPL','MSFT','NVDA','AMZN','GOOGL','META','TSLA','JPM','V','UNH',
-    'XOM','LLY','JNJ','PG','MA','HD','CVX','MRK','ABBV','AVGO',
-    'COST','PEP','KO','AMD','NFLX','ORCL','CRM','BAC','WMT','DIS',
-    'INTC','QCOM','GS','PYPL','SHOP','PLTR','SOFI','HOOD','RIVN','F',
-    'GM','BA','GE','NIO','LCID','SQ','ACN','MS','TMO','BRK.B'
-  ];
-
+  // Top gainers/losers using correct free tier endpoints
   async function topMovers() {
-    const data = await batchQuotes(WATCHLIST);
-    const valid = data.filter(q => q.dp !== null && q.dp !== undefined && q.c > 0);
-    const sorted = [...valid].sort((a, b) => b.dp - a.dp);
+    const [gainersRaw, losersRaw] = await Promise.all([
+      get('/gainers'),
+      get('/losers'),
+    ]);
+
+    const mapStock = s => ({
+      symbol: s.ticker  || s.symbol,
+      c:  s.price       || 0,
+      o:  (s.price - (s.change || 0)) || 0,
+      h:  s.price       || 0,
+      l:  s.price       || 0,
+      d:  s.change      || 0,
+      dp: parseFloat(s.changesPercentage || s.changePercentage || 0),
+      v:  s.volume      || 0,
+    });
+
     return {
-      gainers: sorted.slice(0, 5),
-      losers:  sorted.slice(-5).reverse(),
+      gainers: (Array.isArray(gainersRaw) ? gainersRaw : []).slice(0, 5).map(mapStock),
+      losers:  (Array.isArray(losersRaw)  ? losersRaw  : []).slice(0, 5).map(mapStock),
     };
   }
 
@@ -91,13 +79,13 @@ const Finnhub = (() => {
     const p = Array.isArray(data) ? data[0] : data;
     if (!p) return { name: symbol };
     return {
-      name:                 p.companyName       || symbol,
-      finnhubIndustry:      p.industry          || '',
-      exchange:             p.exchangeShortName  || '',
+      name:                 p.companyName      || symbol,
+      finnhubIndustry:      p.industry         || '',
+      exchange:             p.exchangeShortName || '',
       marketCapitalization: p.mktCap ? p.mktCap / 1e6 : null,
-      weburl:               p.website            || '',
-      logo:                 p.image              || '',
-      description:          p.description        || '',
+      weburl:               p.website           || '',
+      logo:                 p.image             || '',
+      description:          p.description       || '',
     };
   }
 
@@ -123,10 +111,10 @@ const Finnhub = (() => {
     const m = Array.isArray(metrics.value) ? metrics.value[0] : {};
     return {
       metric: {
-        peBasicExclExtraTTM: r?.peRatioTTM          || null,
+        peBasicExclExtraTTM: r?.peRatioTTM         || null,
         '52WeekHigh':        null,
         '52WeekLow':         null,
-        revenueGrowthTTMYoy: m?.revenueGrowthTTM    || null,
+        revenueGrowthTTMYoy: m?.revenueGrowthTTM   || null,
         netProfitMarginTTM:  r?.netProfitMarginTTM  || null,
       },
     };
@@ -138,11 +126,11 @@ const Finnhub = (() => {
     if (!Array.isArray(data) || !data.length) return [];
     const counts = { strongBuy: 0, buy: 0, hold: 0, sell: 0, strongSell: 0 };
     data.slice(0, 5).forEach(d => {
-      counts.strongBuy  += d.analystRatingsbuy         || 0;
-      counts.buy        += d.analystRatingsOverweight   || 0;
-      counts.hold       += d.analystRatingsHold         || 0;
-      counts.sell       += d.analystRatingsUnderweight  || 0;
-      counts.strongSell += d.analystRatingsSell         || 0;
+      counts.strongBuy  += d.analystRatingsbuy        || 0;
+      counts.buy        += d.analystRatingsOverweight  || 0;
+      counts.hold       += d.analystRatingsHold        || 0;
+      counts.sell       += d.analystRatingsUnderweight || 0;
+      counts.strongSell += d.analystRatingsSell        || 0;
     });
     return [counts];
   }
@@ -160,7 +148,7 @@ const Finnhub = (() => {
     };
   }
 
-  // Earnings surprises
+  // Earnings
   async function earnings(symbol) {
     const data = await get(`/earnings-surprises/${symbol}`);
     return Array.isArray(data) ? data.slice(0, 4) : [];
